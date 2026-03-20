@@ -1,244 +1,354 @@
 # OmniBioAI Control Center
 
-**OmniBioAI Control Center** is a lightweight FastAPI service that provides centralized health monitoring for the entire OmniBioAI ecosystem.
+**Operational health dashboard and ecosystem report server for the OmniBioAI stack.**
 
-It aggregates service health, latency, and status codes across all core components and exposes a unified `/status` endpoint for observability and diagnostics.
-
----
-
-## Purpose
-
-The Control Center acts as the operational visibility layer of OmniBioAI.
-
-It monitors:
-
-* OmniBioAI Workbench (Django)
-* TES (Task Execution Service)
-* ToolServer
-* Model Registry
-* LIMS-X
-* Redis
-* MySQL (indirectly via service health)
-
-It is designed to:
-
-* Provide a single health endpoint for dashboards
-* Support deployment validation
-* Assist debugging in local, Docker, HPC, or cloud environments
-* Enable future monitoring integration (Prometheus, Grafana, etc.)
+The Control Center is a lightweight FastAPI service that aggregates health status across all OmniBioAI components and serves the interactive ecosystem report covering architecture, codebase statistics, code coverage, and live service health.
 
 ---
 
-## Architecture
+## What It Does
 
-```
-Client (Browser / curl)
-        |
-        v
-Control Center (FastAPI :8100)
-        |
-        +--> Workbench        (/health/)
-        +--> TES              (/health)
-        +--> ToolServer       (/health)
-        +--> Model Registry   (/health)
-        +--> LIMS-X           (/ or /health)
-```
-
-The Control Center does **not** execute workflows.
-It only monitors services.
+- **Health monitoring** — TCP, HTTP, and disk checks across all ecosystem services
+- **Live dashboard** — auto-refreshing browser UI at `/` with per-service status cards
+- **Ecosystem report** — interactive HTML report (architecture · projects · languages · coverage · health) served at `/report`
+- **JSON API** — machine-readable health summary at `/summary` for CI/CD and external monitoring
 
 ---
 
-## Endpoints
+## Repository Structure
 
-### Health
-
+```text
+omnibioai-control-center/
+│
+├── scripts/
+│   └── generate_report.py          # Ecosystem report generator (CLI)
+│
+├── backend/
+│   ├── pyproject.toml              # Package definition and dependencies
+│   ├── src/control_center/
+│   │   ├── main.py                 # FastAPI app — registers all routers
+│   │   ├── api/
+│   │   │   ├── routes_health.py    # GET /health
+│   │   │   ├── routes_services.py  # GET /services
+│   │   │   ├── routes_summary.py   # GET /summary
+│   │   │   └── routes_report.py    # GET /report
+│   │   ├── checks/
+│   │   │   ├── http.py             # HTTP health checks
+│   │   │   ├── tcp.py              # TCP health checks (MySQL, Redis)
+│   │   │   └── disk.py             # Disk usage checks
+│   │   ├── core/
+│   │   │   ├── runner.py           # Dispatches checks per service type
+│   │   │   └── settings.py         # Loads control_center.yaml
+│   │   └── utils/
+│   │       └── summary_client.py   # Fetches /summary for report generation
+│   └── tests/
+│       ├── test_checks.py          # Unit tests — tcp/http/disk
+│       ├── test_runner.py          # Unit tests — runner + settings
+│       └── test_summary_client.py  # Unit tests — health data parsing
+│
+├── compose/
+│   └── docker-compose.control-center.yml
+├── config/
+│   ├── control_center.yaml         # Active configuration
+│   └── control_center.example.yaml # Reference configuration
+└── docker/
+    └── Dockerfile
 ```
-GET /health
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Live health dashboard (auto-refreshes every 10s) |
+| `/health` | GET | Control Center self-check |
+| `/services` | GET | Per-service health status (JSON) |
+| `/summary` | GET | Full ecosystem summary — services + disk (JSON) |
+| `/report` | GET | Pre-generated ecosystem HTML report |
+
+### `/health`
+
+```json
+{ "status": "ok" }
 ```
 
-Response:
+### `/summary`
 
 ```json
 {
-  "ok": true,
-  "service": "omnibioai-control-center"
-}
-```
-
----
-
-### Status
-
-```
-GET /status
-```
-
-Example response:
-
-```json
-{
-  "ok": true,
-  "services": {
-    "workbench": {
-      "ok": true,
-      "status_code": 200,
-      "latency_ms": 4,
-      "url": "http://omnibioai:8000/health/"
+  "overall_status": "UP",
+  "generated_at": "2026-03-20T02:44:00+00:00",
+  "services": [
+    {
+      "name": "omnibioai",
+      "type": "http",
+      "target": "http://omnibioai:8000/",
+      "status": "UP",
+      "latency_ms": 12,
+      "message": "HTTP 200"
     },
-    "tes": {
-      "ok": true,
-      "status_code": 200,
-      "latency_ms": 2,
-      "url": "http://tes:8081/health"
+    {
+      "name": "mysql",
+      "type": "mysql",
+      "target": "mysql:3306",
+      "status": "UP",
+      "latency_ms": 3,
+      "message": "TCP connect ok"
     }
+  ],
+  "system": {
+    "disk": [
+      {
+        "name": "disk:/workspace/out",
+        "type": "disk",
+        "target": "/workspace/out",
+        "status": "UP",
+        "latency_ms": null,
+        "message": "45.2% free"
+      }
+    ]
   }
 }
 ```
 
-Each service reports:
-
-* `ok` (boolean)
-* `status_code`
-* `latency_ms`
-* `url`
-* `error` (if unreachable)
+Status values: `UP` | `DOWN` | `WARN`
 
 ---
 
-## Configuration (Environment Variables)
+## Configuration
 
-Control Center is fully configurable via environment variables.
-
-### Core Service URLs
-
-| Variable              | Default                                        | Description               |
-| --------------------- | ---------------------------------------------- | ------------------------- |
-| WORKBENCH_URL         | [http://127.0.0.1:8001](http://127.0.0.1:8001) | Django Workbench base URL |
-| WORKBENCH_HEALTH_PATH | /health/                                       | Health path               |
-| TES_URL               | [http://127.0.0.1:8081](http://127.0.0.1:8081) | TES base URL              |
-| TOOLSERVER_URL        | [http://127.0.0.1:9090](http://127.0.0.1:9090) | ToolServer base URL       |
-| MODEL_REGISTRY_URL    | [http://127.0.0.1:8095](http://127.0.0.1:8095) | Model Registry base URL   |
-| LIMSX_URL             | [http://127.0.0.1:7000](http://127.0.0.1:7000) | LIMS-X base URL           |
-| LIMSX_HEALTH_PATH     | /health                                        | Health path override      |
-
----
-
-## Docker Usage
-
-### Build
-
-```bash
-docker build -t omnibioai-control-center .
-```
-
-### Run (Standalone)
-
-```bash
-docker run -p 8100:8100 omnibioai-control-center
-```
-
-### Run with custom URLs
-
-```bash
-docker run \
-  -e WORKBENCH_URL=http://omnibioai:8000 \
-  -e TES_URL=http://tes:8081 \
-  -e TOOLSERVER_URL=http://toolserver:9090 \
-  -e MODEL_REGISTRY_URL=http://model-registry:8095 \
-  -e LIMSX_URL=http://lims-x:7000 \
-  -p 8100:8100 \
-  omnibioai-control-center
-```
-
----
-
-## Docker Compose Integration
-
-Example service block:
+All monitored services and disk paths are defined in `config/control_center.yaml`.
 
 ```yaml
-control-center:
-  build:
-    context: ../../omnibioai-control-center
-  container_name: omnibioai-control-center
-  environment:
-    WORKBENCH_URL: http://omnibioai:8000
-    WORKBENCH_HEALTH_PATH: /health/
-    TES_URL: http://tes:8081
-    TOOLSERVER_URL: http://toolserver:9090
-    MODEL_REGISTRY_URL: http://model-registry:8095
-    LIMSX_URL: http://lims-x:7000
-    LIMSX_HEALTH_PATH: /
-  ports:
-    - "8100:8100"
+services:
+  mysql:
+    type: mysql
+    host: mysql
+    port: 3306
+
+  redis:
+    type: redis
+    host: redis
+    port: 6379
+
+  toolserver:
+    type: http
+    url: http://toolserver:9090/health
+    timeout_s: 2
+
+  tes:
+    type: http
+    url: http://tes:8081/health
+    timeout_s: 2
+
+  omnibioai:
+    type: http
+    url: http://omnibioai:8000/
+    timeout_s: 2
+
+  lims-x:
+    type: http
+    url: http://lims-x:7000/
+    timeout_s: 2
+
+  model-registry:
+    type: http
+    url: http://model-registry:8095/health
+    timeout_s: 2
+
+system:
+  disk_checks:
+    - path: /workspace/out
+      warn_pct_free_below: 15
+    - path: /workspace/tmpdata
+      warn_pct_free_below: 10
+    - path: /workspace/local_registry
+      warn_pct_free_below: 10
 ```
 
-Access:
+### Supported check types
 
+| Type | Required fields | Description |
+|------|----------------|-------------|
+| `http` | `url`, `timeout_s` | HTTP GET — UP if 2xx, WARN if 3xx/4xx/5xx |
+| `mysql` | `host`, `port` | TCP connect to MySQL port |
+| `redis` | `host`, `port` | TCP connect to Redis port |
+
+### Adding a new service
+
+Add a block to `config/control_center.yaml` and restart the container:
+
+```yaml
+services:
+  my-new-service:
+    type: http
+    url: http://my-service:8080/health
+    timeout_s: 2
 ```
-http://localhost:8100/status
-```
+
+No code changes required.
 
 ---
 
-## Running Without Docker
+## Running
+
+### Via Docker Compose (recommended)
 
 ```bash
-pip install -e .
-uvicorn omnibioai_control_center.app.main:app --host 0.0.0.0 --port 8100
+# From the ecosystem root (~/Desktop/machine)
+docker compose \
+  --project-directory . \
+  -f omnibioai-control-center/compose/docker-compose.control-center.yml \
+  up -d
 ```
+
+Access at: `http://localhost:7070`
+
+### Standalone (development)
+
+```bash
+cd backend
+pip install -e ".[dev]"
+
+CONTROL_CENTER_CONFIG=../config/control_center.yaml \
+WORKSPACE_ROOT=~/Desktop/machine \
+uvicorn control_center.main:app --host 0.0.0.0 --port 7070 --reload
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CONTROL_CENTER_CONFIG` | `/config/control_center.yaml` | Path to YAML config |
+| `WORKSPACE_ROOT` | `/workspace` | Ecosystem root — used to locate the report file |
+
+---
+
+## Ecosystem Report
+
+The report is a single interactive HTML file with five tabs:
+
+| Tab | Contents |
+|-----|----------|
+| Architecture | SVG lane diagram of all services and connections |
+| Projects | Code line distribution across all repositories |
+| Languages | Language breakdown across the ecosystem |
+| Code Coverage | Per-repo pytest coverage with progress bars |
+| Health Status | Live service and disk health snapshot |
+
+### Generate
+
+```bash
+# From the ecosystem root — with live health data
+python omnibioai-control-center/scripts/generate_report.py \
+    --root ~/Desktop/machine
+
+# Skip health check (faster, offline)
+python omnibioai-control-center/scripts/generate_report.py \
+    --root ~/Desktop/machine \
+    --skip-health
+
+# Skip coverage collection (code stats only, very fast)
+python omnibioai-control-center/scripts/generate_report.py \
+    --root ~/Desktop/machine \
+    --skip-coverage
+
+# All options
+python omnibioai-control-center/scripts/generate_report.py \
+    --root ~/Desktop/machine \
+    --control-center-url http://127.0.0.1:7070 \
+    --out out/reports/omnibioai_ecosystem_report.html \
+    --title "OmniBioAI Ecosystem Report"
+```
+
+### Requirements
+
+```bash
+# cloc for code counting
+sudo apt-get install cloc        # Ubuntu/Debian
+conda install -c conda-forge cloc  # Conda
+
+# Python dependencies
+pip install pandas
+
+# For coverage collection (best-effort)
+pip install pytest pytest-cov
+```
+
+### View
+
+- **File:** `~/Desktop/machine/out/reports/omnibioai_ecosystem_report.html`
+- **Browser:** Open directly — no server needed
+- **Live:** `http://localhost:7070/report` when Control Center is running
+
+The report generates gracefully even if the Control Center is offline or coverage collection fails — those tabs show a clear unavailable state rather than breaking the whole report.
+
+---
+
+## Running Tests
+
+```bash
+cd backend
+pip install -e ".[dev]"
+pytest tests/ -v
+```
+
+### Test coverage
+
+| File | What it tests |
+|------|--------------|
+| `test_checks.py` | TCP, HTTP, and disk check modules |
+| `test_runner.py` | Service type routing, settings loading |
+| `test_summary_client.py` | Health data parsing, `/summary` fetch |
+
+Tests use in-process HTTP servers — no external dependencies or running services required.
 
 ---
 
 ## Design Principles
 
-* Stateless
-* Async HTTP checks (httpx)
-* Fast startup
-* No database dependency
-* Cloud/HPC portable
-* Docker-first deployment
-* Minimal attack surface
+- **Stateless** — no database, no persistent state
+- **Config-driven** — add services via YAML, no code changes
+- **Graceful degradation** — unreachable services show `DOWN`, never crash the dashboard
+- **Zero mandatory cloud** — runs fully offline and air-gapped
+- **Minimal dependencies** — FastAPI, uvicorn, PyYAML, pydantic only
+- **stdlib HTTP in report** — `urllib` used for health fetching in report generator, no extra deps
 
 ---
 
-## Current Status (v0.1.0)
+## Planned Enhancements (Post-Beta)
 
-✔ Service health aggregation
-✔ Latency measurement
-✔ Configurable via environment
-✔ Docker-ready
-✔ Compose-compatible
-
----
-
-## Planned Enhancements
-
-* Prometheus metrics endpoint
-* Service dependency graph view
-* Web dashboard UI
-* Historical uptime tracking
-* Alert hooks (Slack / Email)
-* Authentication layer
-* Multi-cluster support
+- Prometheus metrics endpoint (`/metrics`)
+- Scheduled report generation via cron or Celery
+- Historical uptime tracking
+- Alert hooks (Slack, email)
+- Authentication layer for the dashboard
+- Trend view — coverage and health over time
 
 ---
 
-## Role in OmniBioAI Ecosystem
+## Current Status — v0.1.0
 
-The Control Center is the **operational observability layer** of OmniBioAI.
-
-It ensures:
-
-* Reproducibility verification
-* Deployment validation
-* Infrastructure transparency
-* Ecosystem integrity
+| Feature | Status |
+|---------|--------|
+| HTTP health checks | ✓ Stable |
+| TCP checks (MySQL, Redis) | ✓ Stable |
+| Disk usage checks | ✓ Stable |
+| Live dashboard UI | ✓ Stable |
+| JSON summary API | ✓ Stable |
+| Ecosystem report — Architecture | ✓ Stable |
+| Ecosystem report — Projects | ✓ Stable |
+| Ecosystem report — Languages | ✓ Stable |
+| Ecosystem report — Coverage | ✓ Stable |
+| Ecosystem report — Health tab | ✓ Stable |
+| Unit tests | ✓ Stable |
+| Docker Compose deployment | ✓ Stable |
+| Prometheus metrics | Planned |
+| Historical tracking | Planned |
 
 ---
 
 ## License
 
-MIT License (or your chosen license)
-
+Apache License 2.0
