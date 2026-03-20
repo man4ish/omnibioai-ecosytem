@@ -1,252 +1,105 @@
-# OmniBioAI Control Center
+# OmniBioAI Ecosystem
 
-## Local Development, Orchestration & Deployment Plane
+## Reproducible Scientific Execution & AI-Powered Bioinformatics
 
-This repository defines the **OmniBioAI Control Center** — the orchestration, deployment, and operational control plane of the OmniBioAI ecosystem.
+OmniBioAI is a **modular, AI-powered bioinformatics workbench** designed to accelerate genomic research across:
 
-OmniBioAI is a **reproducible scientific execution and reasoning platform** designed to run consistently across:
-
-* Local machines
-* On-prem servers
-* HPC environments
-* Cloud infrastructure
+- Local machines
+- On-prem servers
+- HPC environments (Slurm, Apptainer)
+- Cloud infrastructure (AWS Batch, Azure Batch, Kubernetes)
 
 With **no mandatory cloud dependencies**.
 
-This repository does **not** embed bioinformatics algorithms or core application logic.
-Instead, it assembles independently versioned OmniBioAI components into a **single runnable, production-grade ecosystem**.
-
-> Think of this repository as the operational brain and runtime assembly layer of OmniBioAI.
+> This repository is the **workspace root** of the OmniBioAI ecosystem — it assembles independently versioned components into a single runnable, production-grade stack.
 
 ---
 
-# What Is the OmniBioAI Control Center?
+## Architecture
 
-The Control Center is responsible for:
+OmniBioAI follows a **four-plane architecture**:
 
-* Service orchestration
-* Environment configuration
-* Runtime boundaries
-* Cross-service wiring
-* Health checks and dependency contracts
-* Persistence management
-* Deployment portability (local ↔ HPC ↔ cloud)
+| Plane | Role | Key Components |
+|-------|------|----------------|
+| **Control** | Orchestration, governance, APIs | Workbench, TES, ToolServer, Model Registry, LIMS |
+| **Compute** | Ephemeral execution | Workflow runners, tool runtime containers, HPC adapters |
+| **Data** | Artifacts, outputs, versioning | OmniObjects, model artifacts, workflow outputs |
+| **AI** | Reasoning, retrieval, agents | RAG services, LLM integration, agent orchestration |
 
-It defines how OmniBioAI runs — not what each component internally implements.
-
-It is the **control plane** of the ecosystem.
+TES (Tool Execution Service) is the strict boundary between the control and compute planes.
 
 ---
 
-# Architectural Positioning
-
-OmniBioAI follows a **multi-plane architecture**:
-
-### 1. Control Plane (This Repository)
-
-* Django Workbench
-* Model Registry
-* Tool Execution Service (TES)
-* ToolServer
-* LIMS
-* Metadata databases
-* Object and artifact governance
-* API boundaries
-* Health contracts
-
-These services are:
-
-* Long-lived
-* Stateful
-* Restart-safe
-* Governance-aware
-
----
-
-### 2. Compute Plane
-
-* Workflow runners (WDL, Nextflow, Snakemake, CWL)
-* Tool runtime containers
-* HPC adapters
-* Slurm execution
-* Kubernetes jobs
-* Cloud batch adapters
-
-These services are:
-
-* Ephemeral
-* Replaceable
-* Execution-only
-
-TES is the strict boundary between control and compute planes.
-
----
-
-### 3. Data Plane
-
-* OmniObjects
-* Model artifacts
-* Workflow outputs
-* Versioned bundles
-* Datasets
-
----
-
-### 4. AI Plane
-
-* RAG services
-* LLM reasoning
-* Agent orchestration
-* Scientific interpretation layers
-
----
-
-# Who This Repository Is For
-
-This repository is intended for:
-
-* Core OmniBioAI developers
-* Infrastructure engineers
-* HPC administrators
-* Enterprise deployment teams
-* Regulated or air-gapped environments
-* Power users running full stacks locally
-
-It is **not required** for:
-
-* Plugin-only development
-* SDK-only usage
-* Users consuming hosted OmniBioAI
-
----
-
-# Workspace Layout
+## Workspace Layout
 
 ```text
 Desktop/machine/
-├── omnibioai/                     # Workbench (Django platform)
-├── omnibioai-tes/                 # Tool Execution Service
-├── omnibioai-toolserver/          # FastAPI ToolServer
-├── omnibioai-model-registry/      # Model registry service
-├── omnibioai-lims/                # LIMS
-├── omnibioai-rag/                 # RAG & LLM services
-├── omnibioai_sdk/                 # Python SDK
-├── omnibioai-workflow-bundles/    # Engine-agnostic workflows
+│
+├── omnibioai/                     # Workbench — Django platform, plugins, agents
+├── omnibioai-tes/                 # Tool Execution Service — HPC/cloud/local execution
+├── omnibioai-toolserver/          # FastAPI ToolServer — validated async tool APIs
+├── omnibioai-tool-runtime/        # Minimal cloud-agnostic container execution runtime
+├── omnibioai-model-registry/      # Production model registry — versioning, provenance
+├── omnibioai-lims/                # Lightweight Django LIMS — samples, metadata
+├── omnibioai-rag/                 # RAG assistant — Hugging Face + Ollama LLMs
+├── omnibioai_sdk/                 # Python SDK — API, object registry, notebooks
+├── omnibioai-workflow-bundles/    # Engine-agnostic workflows — WDL, Nextflow, Snakemake, CWL
+├── omnibioai-dev-docker/          # GPU dev environment — CUDA, JupyterLab, Ollama
+├── omnibioai-control-center/      # Health dashboard, ecosystem report, orchestration
 │
 ├── deploy/
-│   ├── compose/                   # Canonical Docker Compose
+│   ├── compose/                   # Canonical Docker Compose files
+│   ├── control-center/            # Control Center runtime (moved to omnibioai-control-center)
 │   ├── scripts/                   # Bootstrap utilities
-│   ├── bundle/                    # Offline bundles
-│   ├── hpc/                       # Apptainer assets
-│   └── k8s/                       # Kubernetes (in progress)
+│   ├── bundle/                    # Offline image bundles
+│   ├── hpc/                       # Apptainer / Singularity assets
+│   └── k8s/                       # Kubernetes (post-beta)
 │
-├── data/
-├── work/
-├── tmpdata/
-├── out/
-├── local_registry/
+├── db-init/                       # Database initialisation scripts
+├── data/                          # Runtime data volumes
+├── local_registry/                # Local model artifact storage
+├── tmpdata/                       # Temporary execution workspace
+├── out/                           # Report and analysis outputs
+│   └── reports/
+│       └── omnibioai_ecosystem_report.html   # Generated ecosystem report
 │
-├── db-init/
-├── utils/
-├── images/
-│
-├── docker-compose.yml
-├── .env.example
+├── utils/                         # Shared utilities
+├── images/                        # Container image assets
 └── README.md
 ```
 
 ---
 
-# Canonical Runtime Services
+## Services
 
-| Service                      | Port | Role                         |
-| ---------------------------- | ---- | ---------------------------- |
-| OmniBioAI Workbench          | 8000 | UI, plugins, agents          |
-| Tool Execution Service (TES) | 8081 | Workflow orchestration       |
-| ToolServer                   | 9090 | Tool APIs                    |
-| Model Registry               | 8095 | Versioned ML artifacts       |
-| LIMS                         | 7000 | Sample & metadata management |
-| MySQL                        | 3306 | Databases                    |
-| Redis                        | 6379 | Celery & caching             |
+| Service | Port | Role |
+|---------|------|------|
+| OmniBioAI Workbench | 8000 | UI, plugins, agents, AI tools |
+| Tool Execution Service (TES) | 8081 | Workflow and tool orchestration |
+| ToolServer | 9090 | Validated async tool APIs |
+| Model Registry | 8095 | Versioned ML model artifacts |
+| LIMS | 7000 | Sample and metadata management |
+| Control Center | 7070 | Health dashboard, ecosystem report |
+| MySQL | 3306 | Relational databases |
+| Redis | 6379 | Celery task queue and caching |
 
 All ports are configurable via `.env`.
 
 ---
 
-# Key Capabilities of the Control Center
-
-### 1. Deterministic Multi-Service Orchestration
-
-* Ordered startup with health checks
-* Restart-safe dependency management
-* Strict port contracts
-* Environment-based configuration
-
----
-
-### 2. Model Governance Layer
-
-* Model versioning
-* Alias promotion
-* Artifact verification
-* Reproducibility metadata
-* Strict package validation
-
----
-
-### 3. HPC Compatibility
-
-Supports execution on:
-
-* Slurm clusters
-* Apptainer / Singularity environments
-* Non-root HPC nodes
-
-Control plane can remain external while compute runs on HPC.
-
----
-
-### 4. Cloud Parity
-
-OCI-compliant images allow deployment to:
-
-* AWS Batch
-* Azure Batch
-* Kubernetes
-* On-prem Docker
-
-Design goal: **parity across environments**
-
----
-
-### 5. Offline / Air-Gapped Deployment
-
-This repository supports:
-
-* Prebuilt Docker image bundles
-* Volume snapshots
-* Seeded databases
-* Fully offline installation
-
-Suitable for:
-
-* Regulated research labs
-* Secure enterprise networks
-* Hospital environments
-
----
-
-# Local Deployment
+## Quick Start
 
 ### Prerequisites
 
-* Docker Engine or Docker Desktop
-* Docker Compose v2+
+- Docker Engine or Docker Desktop
+- Docker Compose v2+
+- Python 3.11+ (for report generation)
 
-### Start Full Stack
+### Start the Full Stack
 
 ```bash
 cp deploy/compose/.env.example deploy/compose/.env
+
 docker compose \
   --project-directory . \
   --env-file deploy/compose/.env \
@@ -254,84 +107,164 @@ docker compose \
   up -d
 ```
 
-### Verify Services
+### Verify Core Services
 
 ```bash
-curl http://127.0.0.1:8000
-curl http://127.0.0.1:8081/health
-curl http://127.0.0.1:8095/health
+curl http://127.0.0.1:8000          # Workbench
+curl http://127.0.0.1:8081/health   # TES
+curl http://127.0.0.1:9090/health   # ToolServer
+curl http://127.0.0.1:8095/health   # Model Registry
+curl http://127.0.0.1:7070/health   # Control Center
+curl http://127.0.0.1:7070/summary  # Ecosystem health summary (JSON)
+```
+
+### Start the Control Center
+
+```bash
+docker compose \
+  --project-directory . \
+  -f omnibioai-control-center/compose/docker-compose.control-center.yml \
+  up -d
 ```
 
 ---
 
-# Operational Modes
+## Ecosystem Report
 
-| Mode      | Control Plane  | Compute Plane     |
-| --------- | -------------- | ----------------- |
-| Local dev | Docker Compose | Local Docker      |
-| On-prem   | Docker Compose | Docker / TES      |
-| HPC       | External VM    | Apptainer via TES |
-| Hybrid    | VM             | HPC + TES         |
-| Cloud     | Kubernetes     | Kubernetes        |
+The ecosystem report is a single interactive HTML file covering:
 
----
+- **Architecture** — SVG lane diagram of all services and their connections
+- **Projects** — Code line distribution across all repositories
+- **Languages** — Language breakdown across the ecosystem
+- **Code Coverage** — Per-repo pytest coverage with trend indicators
+- **Health Status** — Live service and disk health from the Control Center
 
-# Design Principles
+### Generate the Report
 
-* Single workspace root
-* No absolute paths
-* Strict service boundaries
-* Control plane ≠ compute plane
-* Restart-safe orchestration
-* Container-native design
-* Environment-driven configuration
-* No forced cloud dependencies
+```bash
+# With Control Center running (includes live health data)
+python omnibioai-control-center/scripts/generate_report.py \
+    --root ~/Desktop/machine
 
----
+# Without health data (faster, offline)
+python omnibioai-control-center/scripts/generate_report.py \
+    --root ~/Desktop/machine \
+    --skip-health
 
-# What This Repository Does Not Do
+# Custom Control Center URL
+python omnibioai-control-center/scripts/generate_report.py \
+    --root ~/Desktop/machine \
+    --control-center-url http://localhost:7070
+```
 
-* Does not contain bioinformatics algorithms
-* Does not vendor component repositories
-* Does not enforce a single workflow engine
-* Does not hide execution behind opaque AI calls
-* Does not require external SaaS services
+### View the Report
 
----
+- **File:** `out/reports/omnibioai_ecosystem_report.html`
+- **Browser:** Open directly in any browser
+- **Control Center:** `http://127.0.0.1:7070/report` (served live when Control Center is running)
 
-# Strategic Role in the Ecosystem
+### Requirements
 
-OmniBioAI components are independently versioned repositories.
-
-This repository:
-
-* Assembles them
-* Wires them
-* Runs them
-* Governs them
-* Deploys them
-
-It is the **operational control boundary** of OmniBioAI.
+```bash
+pip install cloc pandas
+# pytest + pytest-cov for coverage collection (best-effort)
+```
 
 ---
 
-# Current Status
+## Control Center
 
-* Multi-service orchestration stable
-* Model Registry integrated
-* TES integrated
-* ToolServer integrated
-* LIMS integrated
-* Offline-ready structure
-* HPC-aware architecture
-* Kubernetes preparation underway
+The Control Center (`omnibioai-control-center/`) is the operational dashboard for the ecosystem:
+
+- **`GET /health`** — Control Center self-check
+- **`GET /services`** — Per-service health status
+- **`GET /summary`** — Full ecosystem summary (services + disk)
+- **`GET /report`** — Serves the pre-generated ecosystem HTML report
+
+Health checks cover HTTP endpoints, TCP ports (MySQL, Redis), and disk usage thresholds. Configuration lives in `omnibioai-control-center/config/control_center.yaml`.
 
 ---
 
-# Final Positioning
+## Operational Modes
 
-This repository is:
+| Mode | Control Plane | Compute Plane |
+|------|--------------|---------------|
+| Local dev | Docker Compose | Local Docker |
+| On-prem | Docker Compose | Docker / TES |
+| HPC | External VM | Apptainer via TES |
+| Hybrid | VM | HPC + TES |
+| Cloud | Kubernetes | Kubernetes |
 
-> The OmniBioAI Control Center — the orchestration, deployment, and runtime control plane of the OmniBioAI ecosystem.
+---
 
-It defines how the ecosystem runs, scales, and moves across environments — while preserving strict reproducibility and architectural boundaries.
+## Key Design Principles
+
+- **Single workspace root** — all repos are siblings under one directory
+- **No absolute paths** — fully portable across machines
+- **Strict service boundaries** — control plane ≠ compute plane
+- **Restart-safe orchestration** — ordered startup with health checks
+- **Container-native** — OCI-compliant images throughout
+- **Environment-driven** — all configuration via `.env` and YAML
+- **No forced cloud dependencies** — runs fully offline and air-gapped
+- **Engine-agnostic workflows** — WDL, Nextflow, Snakemake, CWL all supported
+
+---
+
+## What This Ecosystem Does Not Do
+
+- Does not contain bioinformatics algorithms directly (these live in plugin repos)
+- Does not vendor component repositories
+- Does not enforce a single workflow engine
+- Does not hide execution behind opaque AI calls
+- Does not require external SaaS services
+
+---
+
+## Repository Index
+
+| Repository | Visibility | Description |
+|-----------|-----------|-------------|
+| `omnibioai` | Private | Workbench — plugin-based Django platform |
+| `omnibioai-tes` | Private | Tool Execution Service — HPC/cloud/local backends |
+| `omnibioai-toolserver` | Private | FastAPI tool execution APIs |
+| `omnibioai-tool-runtime` | Private | Cloud-agnostic container execution contract |
+| `omnibioai-model-registry` | Public | Production ML model registry |
+| `omnibioai-lims` | Private | Laboratory Information Management System |
+| `omnibioai-rag` | Private | RAG-powered bioinformatics assistant |
+| `omnibioai_sdk` | Private | Python SDK — v1 complete |
+| `omnibioai-workflow-bundles` | Private | Versioned engine-agnostic workflow bundles |
+| `omnibioai-dev-docker` | Private | GPU AI development environment |
+| `omnibioai-control-center` | Public | Health dashboard and ecosystem report |
+
+---
+
+## Current Status — Beta Preparation
+
+| Component | Status |
+|-----------|--------|
+| Multi-service orchestration | Stable |
+| Tool Execution Service | Stable |
+| ToolServer | Stable |
+| Tool Runtime | Stable |
+| Model Registry | Stable |
+| LIMS | Stable |
+| RAG assistant | Stable |
+| Python SDK | v1 complete |
+| Workflow bundles | Stable |
+| Control Center | Active development |
+| Ecosystem report | Active development |
+| Kubernetes | Post-beta |
+
+---
+
+## License
+
+See individual repository LICENSE files.
+Components are independently licensed.
+`omnibioai-model-registry` and `omnibioai-control-center` are Apache 2.0.
+
+---
+
+> OmniBioAI — reproducible bioinformatics at any scale, on any infrastructure.
+
+© 2025 Manish Kumar. All rights reserved.
