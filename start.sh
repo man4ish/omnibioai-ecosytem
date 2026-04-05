@@ -17,7 +17,7 @@ fi
 
 # ── Configuration (with defaults) ────────────────────────────────────────────
 MACHINE="${MACHINE_ROOT:-$HOME/Desktop/machine}"
-NETWORK="${DOCKER_NETWORK:-machine_default}"
+NETWORK="${DOCKER_NETWORK:-compose_default}"
 MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-root}"
 MYSQL_DEFAULT_DB="${MYSQL_DEFAULT_DB:-omnibioai}"
 MYSQL_USER="${MYSQL_USER:-root}"
@@ -42,6 +42,19 @@ free_port() {
         fi
     done
 }
+
+# ── Step 0: Ollama ────────────────────────────────────────────────────────────
+echo ""
+echo "▶ [0/8] Starting Ollama (listening on 0.0.0.0:11434)..."
+pkill ollama 2>/dev/null || true
+sleep 1
+OLLAMA_HOST=0.0.0.0:11434 ollama serve > /tmp/ollama.log 2>&1 &
+sleep 3
+if ss -tlnp | grep -q "11434"; then
+    echo "  ✓ Ollama running on 0.0.0.0:11434"
+else
+    echo "  ⚠ Ollama may not have started — check /tmp/ollama.log"
+fi
 
 # ── Step 1: Core infrastructure ───────────────────────────────────────────────
 echo ""
@@ -126,11 +139,11 @@ docker run -d \
     --network "$NETWORK" \
     -p 8001:8001 \
     -e DJANGO_SETTINGS_MODULE=omnibioai.settings \
-    -e OMNIBIOAI_MYSQL_HOST=mysql \
-    -e OMNIBIOAI_MYSQL_PORT=3306 \
-    -e OMNIBIOAI_MYSQL_DB="$MYSQL_DEFAULT_DB" \
-    -e OMNIBIOAI_MYSQL_USER="$MYSQL_USER" \
-    -e OMNIBIOAI_MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD" \
+    -e DB_HOST=mysql \
+    -e DB_PORT=3306 \
+    -e DB_NAME="$MYSQL_DEFAULT_DB" \
+    -e DB_USER="$MYSQL_USER" \
+    -e DB_PASSWORD="$MYSQL_ROOT_PASSWORD" \
     -e REDIS_HOST="$REDIS_HOST" \
     -e REDIS_PORT="$REDIS_PORT" \
     -e CELERY_BROKER_URL="redis://$REDIS_HOST:$REDIS_PORT/1" \
@@ -138,12 +151,14 @@ docker run -d \
     -e TES_BASE_URL=http://omnibioai-tes:8081 \
     -e TOOLSERVER_BASE_URL=http://toolserver:9090 \
     -e MODEL_REGISTRY_BASE_URL=http://model-registry:8095 \
+    -e OLLAMA_HOST=http://172.17.0.1:11434 \
     -e WORKSPACE_ROOT=/workspace \
+    -v "$MACHINE/omnibioai":/app \
     -v "$MACHINE":/workspace \
     -v "$MACHINE/data":/workspace/data \
     -v "$MACHINE/out":/workspace/out \
     machine-omnibioai:latest \
-    bash -lc "cd /workspace/omnibioai && \
+    bash -lc "cd /app && \
         python manage.py migrate --fake && \
         python manage.py runserver 0.0.0.0:8001"
 echo "  ✓ Workbench starting"
@@ -157,20 +172,22 @@ docker run -d \
     --restart unless-stopped \
     --network "$NETWORK" \
     -e DJANGO_SETTINGS_MODULE=omnibioai.settings \
-    -e OMNIBIOAI_MYSQL_HOST=mysql \
-    -e OMNIBIOAI_MYSQL_PORT=3306 \
-    -e OMNIBIOAI_MYSQL_DB="$MYSQL_DEFAULT_DB" \
-    -e OMNIBIOAI_MYSQL_USER="$MYSQL_USER" \
-    -e OMNIBIOAI_MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD" \
+    -e DB_HOST=mysql \
+    -e DB_PORT=3306 \
+    -e DB_NAME="$MYSQL_DEFAULT_DB" \
+    -e DB_USER="$MYSQL_USER" \
+    -e DB_PASSWORD="$MYSQL_ROOT_PASSWORD" \
     -e REDIS_HOST="$REDIS_HOST" \
     -e REDIS_PORT="$REDIS_PORT" \
     -e CELERY_BROKER_URL="redis://$REDIS_HOST:$REDIS_PORT/1" \
     -e CELERY_RESULT_BACKEND="redis://$REDIS_HOST:$REDIS_PORT/2" \
+    -e OLLAMA_HOST=http://172.17.0.1:11434 \
     -e WORKSPACE_ROOT=/workspace \
+    -v "$MACHINE/omnibioai":/app \
     -v "$MACHINE":/workspace \
     -v "$MACHINE/out":/workspace/out \
     machine-omnibioai:latest \
-    bash -lc "cd /workspace/omnibioai && celery -A omnibioai worker -l info"
+    bash -lc "cd /app && celery -A omnibioai worker -l info"
 echo "  ✓ Celery Worker starting"
 
 # ── Step 8: Control Center ────────────────────────────────────────────────────
@@ -233,4 +250,5 @@ echo "  LIMS-X          →  http://localhost:7000/core/"
 echo "  TES             →  http://localhost:8081"
 echo "  ToolServer      →  http://localhost:9090"
 echo "  Model Registry  →  http://localhost:8095"
+echo "  Ollama          →  http://localhost:11434"
 echo "════════════════════════════════════════════════════════"
