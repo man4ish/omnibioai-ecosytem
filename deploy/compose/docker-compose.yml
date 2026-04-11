@@ -83,6 +83,7 @@ services:
       - /var/run/munge:/var/run/munge
       - /run/slurmctld:/run/slurmctld
       - /var/spool/slurmd:/var/spool/slurmd
+      - /tmp/omnibioai_tes_runs:/tmp/omnibioai_tes_runs
       - /home/manish/Desktop/machine/omnibioai/work:/app/work
       - /etc/passwd:/etc/passwd:ro
       - /etc/group:/etc/group:ro
