@@ -60,6 +60,7 @@ services:
     build:
       context: ../../omnibioai-tes
     container_name: omnibioai-tes
+    user: "1000:1000"
     environment:
       HOST: 0.0.0.0
       PORT: "8081"
@@ -67,11 +68,28 @@ services:
       TOOLSERVER_BASE_URL: ${TOOLSERVER_BASE_URL:-http://toolserver:9090}
       TES_WORKDIR: ${TES_WORKDIR:-/workspace/out/omnibioai-tes}
       TES_TOOLS: /workspace/configs/tools.example.yaml
-      TES_SERVERS: /workspace/configs/servers.local.yaml
+      TES_SERVERS: /workspace/configs/servers.example.yaml
     ports:
       - "${TES_PORT:-8081}:8081"
     volumes:
       - ../../omnibioai-tes:/workspace
+      - /usr/bin/sbatch:/usr/bin/sbatch:ro
+      - /usr/bin/squeue:/usr/bin/squeue:ro
+      - /usr/bin/scancel:/usr/bin/scancel:ro
+      - /usr/lib/aarch64-linux-gnu/libslurm.so.40.0.0:/usr/lib/aarch64-linux-gnu/libslurm.so.40.0.0:ro
+      - /usr/lib/aarch64-linux-gnu/libmunge.so.2:/usr/lib/aarch64-linux-gnu/libmunge.so.2:ro
+      - /usr/lib/aarch64-linux-gnu/slurm-wlm:/usr/lib/aarch64-linux-gnu/slurm-wlm:ro
+      - /etc/slurm:/etc/slurm:ro
+      - /var/run/munge:/var/run/munge
+      - /run/slurmctld:/run/slurmctld
+      - /var/spool/slurmd:/var/spool/slurmd
+      - /home/manish/Desktop/machine/omnibioai/work:/app/work
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/group:/etc/group:ro
+      - /usr/lib/x86_64-linux-gnu/libmunge.so.2:/usr/lib/x86_64-linux-gnu/libmunge.so.2:ro
+      - /home/manish/Desktop/machine/omnibioai/work:/app/work
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/group:/etc/group:ro
     command:
       - bash
       - -lc
@@ -80,7 +98,7 @@ services:
           --host 0.0.0.0 \
           --port 8081 \
           --tools /workspace/configs/tools.example.yaml \
-          --servers /workspace/configs/servers.local.yaml
+          --servers /workspace/configs/servers.example.yaml
     depends_on:
       toolserver:
         condition: service_healthy
@@ -201,14 +219,24 @@ services:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/1}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       TES_BASE_URL: ${TES_BASE_URL:-http://tes:8081}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       TOOLSERVER_BASE_URL: ${TOOLSERVER_BASE_URL:-http://toolserver:9090}
       MODEL_REGISTRY_BASE_URL: ${MODEL_REGISTRY_BASE_URL:-http://model-registry:8095}
       WORKSPACE_ROOT: /workspace
+      OMNIBIOAI_TES_URL: ${TES_BASE_URL:-http://tes:8081}
+      OMNIBIOAI_MYSQL_HOST: ${MYSQL_HOST:-mysql}
+      OMNIBIOAI_MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      OMNIBIOAI_MYSQL_USER: ${MYSQL_USER:-root}
+      OMNIBIOAI_MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      OMNIBIOAI_MYSQL_DB: ${OMNIBIOAI_DB_NAME:-omnibioai}
     ports:
       - "${WORKBENCH_PORT:-8000}:8000"
     volumes:
       - ../../:/workspace
       - ../../data:/workspace/data
+      - ../../omnibioai:/app
+      - ../../omnibioai/data/PubMed:/workspace/data/PubMed
       - ../../work:/workspace/work
       - ../../out:/workspace/out
       - ../../tmpdata:/workspace/tmpdata
@@ -223,6 +251,8 @@ services:
         condition: service_healthy
       mysql:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["bash", "-lc", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
     healthcheck:
       test:
