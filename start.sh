@@ -43,6 +43,35 @@ free_port() {
     done
 }
 
+# ── Pre-flight: Sync host MySQL → db-init dump ────────────────────────────────
+echo ""
+echo "▶ [pre] Syncing host MySQL to db-init dumps..."
+if ss -tlnp | grep -q "127.0.0.1:3306"; then
+    mysqldump -u"$MYSQL_USER" -p"$MYSQL_ROOT_PASSWORD" omnibioai \
+        > "$MACHINE/db-init/omnibioai.sql" 2>/dev/null && \
+        echo "  ✓ omnibioai.sql refreshed from host MySQL" || \
+        echo "  ⚠ omnibioai.sql dump failed"
+    mysqldump -u"$MYSQL_USER" -p"$MYSQL_ROOT_PASSWORD" limsdb \
+        > "$MACHINE/db-init/limsdb.sql" 2>/dev/null && \
+        echo "  ✓ limsdb.sql refreshed from host MySQL" || \
+        echo "  ⚠ limsdb.sql dump failed (limsdb may not exist on host)"
+else
+    echo "  ⚠ No host MySQL on 127.0.0.1:3306 — skipping dump refresh"
+fi
+
+# ── Pre-flight: Ensure omnibioai/.env uses container DB host ─────────────────
+APP_ENV="$MACHINE/omnibioai/.env"
+if [[ -f "$APP_ENV" ]]; then
+    if grep -q "DB_HOST=127.0.0.1" "$APP_ENV"; then
+        sed -i 's/DB_HOST=127\.0\.0\.1/DB_HOST=mysql/g' "$APP_ENV"
+        echo "  ✓ Patched omnibioai/.env: DB_HOST → mysql"
+    fi
+    if grep -q "OMNIBIOAI_MYSQL_HOST=127.0.0.1" "$APP_ENV"; then
+        sed -i 's/OMNIBIOAI_MYSQL_HOST=127\.0\.0\.1/OMNIBIOAI_MYSQL_HOST=mysql/g' "$APP_ENV"
+        echo "  ✓ Patched omnibioai/.env: OMNIBIOAI_MYSQL_HOST → mysql"
+    fi
+fi
+
 # ── Step 0: Ollama ────────────────────────────────────────────────────────────
 echo ""
 echo "▶ [0/8] Starting Ollama (listening on 0.0.0.0:11434)..."
@@ -70,6 +99,21 @@ done
 echo "  ✓ MySQL ready"
 echo "  ✓ Redis ready"
 
+# ── Post-MySQL: Import fresh dump into container ──────────────────────────────
+echo "  Importing omnibioai.sql into container MySQL..."
+docker exec -i omnibioai-mysql mysql \
+    -u"$MYSQL_USER" -p"$MYSQL_ROOT_PASSWORD" omnibioai \
+    < "$MACHINE/db-init/omnibioai.sql" 2>/dev/null && \
+    echo "  ✓ omnibioai data imported" || \
+    echo "  ⚠ omnibioai import failed"
+
+echo "  Importing limsdb.sql into container MySQL..."
+docker exec -i omnibioai-mysql mysql \
+    -u"$MYSQL_USER" -p"$MYSQL_ROOT_PASSWORD" limsdb \
+    < "$MACHINE/db-init/limsdb.sql" 2>/dev/null && \
+    echo "  ✓ limsdb data imported" || \
+    echo "  ⚠ limsdb import skipped"
+
 # ── Step 2: ToolServer ────────────────────────────────────────────────────────
 echo ""
 echo "▶ [2/8] Starting ToolServer (port 9090)..."
@@ -91,11 +135,13 @@ docker run -d \
     -e TOOLSERVER_BASE_URL=http://toolserver:9090 \
     -e TES_WORKDIR=/workspace/out/tes_runs \
     -v "$MACHINE/omnibioai-tes":/workspace \
+    -v "$HOME/.kube":/home/manish/.kube:ro \
+    -v "$HOME/.minikube":/home/manish/.minikube:ro \
     omnibioai-tes \
     bash -lc "omnibioai-tes serve \
         --host 0.0.0.0 --port 8081 \
         --tools /workspace/configs/tools.example.yaml \
-        --servers /workspace/configs/servers.local.yaml"
+        --servers /workspace/configs/servers.example.yaml"
 echo "  ✓ TES starting"
 
 # ── Step 4: Model Registry ────────────────────────────────────────────────────

@@ -204,6 +204,7 @@ services:
   # ── Workbench ────────────────────────────────────────────────────────────────
 
   omnibioai:
+    user: "1000:1000"
     build:
       context: ../../omnibioai
     container_name: omnibioai-workbench
@@ -254,7 +255,7 @@ services:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["bash", "-lc", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+    command: ["bash", "-lc", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000 --noreload"]
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -268,6 +269,7 @@ services:
     build:
       context: ../../omnibioai
     container_name: omnibioai-celery-worker
+    user: "1000:1000"
     environment:
       DEBUG: "1"
       DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-omnibioai.settings}
@@ -284,12 +286,16 @@ services:
       TOOLSERVER_BASE_URL: ${TOOLSERVER_BASE_URL:-http://toolserver:9090}
       MODEL_REGISTRY_BASE_URL: ${MODEL_REGISTRY_BASE_URL:-http://model-registry:8095}
       WORKSPACE_ROOT: /workspace
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OMNIBIOAI_TES_URL: ${TES_BASE_URL:-http://tes:8081}
     volumes:
       - ../../:/workspace
       - ../../data:/workspace/data
       - ../../work:/workspace/work
       - ../../out:/workspace/out
       - ../../tmpdata:/workspace/tmpdata
+      - ../../omnibioai:/app
     depends_on:
       omnibioai:
         condition: service_healthy
@@ -299,6 +305,8 @@ services:
         condition: service_healthy
       mysql:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["bash", "-lc", "celery -A omnibioai worker -l info"]
     restart: unless-stopped
 
