@@ -232,6 +232,9 @@ services:
       OMNIBIOAI_MYSQL_USER: ${MYSQL_USER:-root}
       OMNIBIOAI_MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       OMNIBIOAI_MYSQL_DB: ${OMNIBIOAI_DB_NAME:-omnibioai}
+      TORCHINDUCTOR_CACHE_DIR: /tmp/torchinductor_cache
+      TRANSFORMERS_CACHE: /tmp/transformers_cache
+      HF_HOME: /tmp/hf_home
     ports:
       - "${WORKBENCH_PORT:-8000}:8000"
     volumes:
@@ -290,6 +293,9 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       OMNIBIOAI_TES_URL: ${TES_BASE_URL:-http://tes:8081}
+      TORCHINDUCTOR_CACHE_DIR: /tmp/torchinductor_cache
+      TRANSFORMERS_CACHE: /tmp/transformers_cache
+      HF_HOME: /tmp/hf_home
     volumes:
       - ../../:/workspace
       - ../../data:/workspace/data
