@@ -69,6 +69,14 @@ services:
       TES_WORKDIR: ${TES_WORKDIR:-/workspace/out/omnibioai-tes}
       TES_TOOLS: /workspace/configs/tools.example.yaml
       TES_SERVERS: /workspace/configs/servers.example.yaml
+      # Path translation for docker run volume mounts: the TES container sees
+      # work files under /app/work, but the host Docker daemon needs the real
+      # host path.  Override via env if the host layout differs.
+      OMNIBIOAI_CONTAINER_WORK_PREFIX: /app/work
+      OMNIBIOAI_HOST_WORK_PREFIX: ${OMNIBIOAI_HOST_WORK_PREFIX:-/home/manish/Desktop/machine/omnibioai/work}
+      # Extra directories to mount into the workflow runner container
+      # (colon-separated list of host paths, mounted at the same path inside the container)
+      OMNIBIOAI_EXTRA_MOUNTS: ${OMNIBIOAI_EXTRA_MOUNTS:-/home/manish/Desktop/machine/omnibioai-workflow-bundles}
     ports:
       - "${TES_PORT:-8081}:8081"
     volumes:
@@ -88,9 +96,11 @@ services:
       - /etc/passwd:/etc/passwd:ro
       - /etc/group:/etc/group:ro
       - /usr/lib/x86_64-linux-gnu/libmunge.so.2:/usr/lib/x86_64-linux-gnu/libmunge.so.2:ro
-      - /home/manish/Desktop/machine/omnibioai/work:/app/work
-      - /etc/passwd:/etc/passwd:ro
-      - /etc/group:/etc/group:ro
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Workflow bundles: needed so TES + workflow runner container can see input files
+      - /home/manish/Desktop/machine/omnibioai-workflow-bundles:/home/manish/Desktop/machine/omnibioai-workflow-bundles:ro
+      - /home/manish/Desktop/machine/omnibioai/work/workflow_runner_runs:/app/work/workflow_runner_runs
     command:
       - bash
       - -lc
@@ -184,22 +194,6 @@ services:
     restart: unless-stopped
 
   # ── AI services ──────────────────────────────────────────────────────────────
-  # rag service will be added post-beta once omnibioai-rag has a Dockerfile
-  # rag:
-  #   build:
-  #     context: ../../omnibioai-rag
-  #   container_name: omnibioai-rag
-  #   environment:
-  #     OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-  #     RAG_DB_PATH: ${RAG_DB_PATH:-/workspace/data/rag}
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   ports:
-  #     - "${RAG_PORT:-8088}:8088"
-  #   volumes:
-  #     - ../../:/workspace
-  #     - ../../data:/workspace/data
-  #   restart: unless-stopped
 
   # ── Workbench ────────────────────────────────────────────────────────────────
 
@@ -246,6 +240,7 @@ services:
       - ../../out:/workspace/out
       - ../../tmpdata:/workspace/tmpdata
       - /var/run/docker.sock:/var/run/docker.sock
+      - /home/manish/Desktop/machine/omnibioai-workflow-bundles:/home/manish/Desktop/machine/omnibioai-workflow-bundles:ro
     depends_on:
       tes:
         condition: service_healthy
@@ -259,7 +254,7 @@ services:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["bash", "-lc", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000 --noreload"]
+    command: ["bash", "-lc", "umask 0000 && python manage.py migrate && python manage.py runserver 0.0.0.0:8000 --noreload"]
     healthcheck:
       test:
         - "CMD-SHELL"
