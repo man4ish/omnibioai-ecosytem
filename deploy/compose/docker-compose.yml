@@ -332,8 +332,9 @@ services:
       - bash
       - -lc
       - |
+        cp -r /workspace/omnibioai-control-center/backend/src/control_center /app/src/ && \
         cd /workspace/omnibioai-control-center/backend && \
-        uvicorn control_center.main:app --host 0.0.0.0 --port 7070
+        uvicorn control_center.main:app --host 0.0.0.0 --port 7070 --reload
     depends_on:
       mysql:
         condition: service_healthy
