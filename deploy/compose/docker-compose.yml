@@ -59,6 +59,8 @@ services:
   tes:
     build:
       context: ../../omnibioai-tes
+    env_file:
+      - .env
     container_name: omnibioai-tes
     user: "1000:1000"
     environment:
@@ -215,7 +217,7 @@ services:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/1}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       TES_BASE_URL: ${TES_BASE_URL:-http://tes:8081}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
       TOOLSERVER_BASE_URL: ${TOOLSERVER_BASE_URL:-http://toolserver:9090}
       MODEL_REGISTRY_BASE_URL: ${MODEL_REGISTRY_BASE_URL:-http://model-registry:8095}
@@ -355,6 +357,19 @@ services:
       retries: 10
     restart: unless-stopped
 
+  ollama:
+    image: ollama/ollama
+    container_name: omnibioai-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./scripts/ollama-init.sh:/init.sh:ro
+    entrypoint: ["/bin/bash", "/init.sh"]
+    restart: unless-stopped
+
 volumes:
   mysql_data:
   redis_data:
+  ollama_data:
+
